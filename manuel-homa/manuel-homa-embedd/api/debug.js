@@ -1,67 +1,71 @@
-// api/debug.js — Diagnóstico: feed + teste de acesso a imagens
+// api/debug.js — Testa feed + reconstrução de imagem via SFCC homa.pt
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
 
   const FEED_URL = process.env.FEED_URL || 'https://homastore.online/homa/feedhoma.xml';
+  const SFCC_IMG_BASE = process.env.SFCC_IMG_BASE
+    || 'https://www.homa.pt/dw/image/v2/BFDH_PRD/on/demandware.static/-/Sites-homa-catalog/default/dw6dfe17e3/images/large';
+
   const results = {};
 
-  // 1. Test image access from Vercel server
-  const testImgUrl = 'https://homastore.online/images/products/000031_conjunto_de_2_travessas_quadradas_borcam_em_vidro_homa_1.jpg';
-  try {
-    const imgRes = await fetch(testImgUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'image/*,*/*',
-        'Referer': 'https://www.homa.pt/',
-        'sec-fetch-dest': 'image',
-        'sec-fetch-mode': 'no-cors',
-        'sec-fetch-site': 'same-site',
-      },
-      signal: AbortSignal.timeout(8000)
-    });
-    results.image_test = {
-      url: testImgUrl,
-      status: imgRes.status,
-      ok: imgRes.ok,
-      content_type: imgRes.headers.get('content-type'),
-      content_length: imgRes.headers.get('content-length'),
-    };
-  } catch (err) {
-    results.image_test = { error: err.message, url: testImgUrl };
-  }
-
-  // 2. Parse a few products from feed
+  // 1. Parse first product from feed
   try {
     const feedRes = await fetch(FEED_URL, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HomaBot/1.0)' },
       signal: AbortSignal.timeout(20000)
     });
     const xml = await feedRes.text();
-    const totalItems = (xml.match(/<item>/gi) || []).length;
     const firstItem = xml.split(/<item>/i)[1] || '';
-    const getField = (tag, text) => {
-      const m = text.match(new RegExp(`<g:${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/g:${tag}>`, 'i'));
+    const get = (tag) => {
+      const m = firstItem.match(new RegExp(`<g:${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/g:${tag}>`, 'i'));
       return m ? m[1].trim() : null;
     };
-    results.feed = {
-      status: feedRes.status,
-      total_items: totalItems,
-      first_product_image: getField('image_link', firstItem),
-      first_product_title: firstItem.match(/<title>([^<]+)/)?.[1],
+    const feedImageUrl = get('image_link');
+    const filename = feedImageUrl ? feedImageUrl.split('/').pop() : null;
+    const reconstructed = filename ? (SFCC_IMG_BASE + '/' + filename) : null;
+
+    results.feed_product = {
+      title: firstItem.match(/<title>([^<]+)/)?.[1],
+      feed_image_url: feedImageUrl,
+      filename_extracted: filename,
+      reconstructed_homa_url: reconstructed,
     };
+
+    // 2. Test if reconstructed URL is accessible from Vercel
+    if (reconstructed) {
+      try {
+        const imgRes = await fetch(reconstructed, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'image/*,*/*',
+            'Referer': 'https://www.homa.pt/',
+            'sec-fetch-dest': 'image',
+            'sec-fetch-mode': 'no-cors',
+            'sec-fetch-site': 'same-origin',
+          },
+          signal: AbortSignal.timeout(8000)
+        });
+        results.image_access = {
+          status: imgRes.status,
+          ok: imgRes.ok,
+          content_type: imgRes.headers.get('content-type'),
+          size_bytes: imgRes.headers.get('content-length'),
+        };
+        results.verdict = imgRes.ok
+          ? '✅ Images will work — SFCC CDN accessible from Vercel'
+          : `❌ SFCC CDN blocked (${imgRes.status}) — update SFCC_IMG_BASE env var`;
+      } catch (err) {
+        results.image_access = { error: err.message };
+        results.verdict = '❌ Fetch failed — ' + err.message;
+      }
+    }
   } catch (err) {
-    results.feed = { error: err.message };
+    results.error = err.message;
   }
 
-  // 3. Proxy test — simulate what imgproxy does
-  if (results.image_test?.ok) {
-    results.proxy_verdict = 'IMAGE ACCESS OK — proxy will work';
-  } else {
-    results.proxy_verdict = `IMAGE BLOCKED (${results.image_test?.status || results.image_test?.error}) — need alternative image source`;
-    // Suggest: use homa.pt SFCC CDN instead
-    results.suggested_fix = 'Extract product ID from feed and build homa.pt CDN URL instead of homastore.online';
-  }
+  results.sfcc_img_base_in_use = SFCC_IMG_BASE;
+  results.hint = 'If verdict is ❌, open any PDP on homa.pt, right-click a product image → "Open in new tab", copy that URL and update SFCC_IMG_BASE env var in Vercel with the base path up to /images/large';
 
-  return res.status(200).json(results);
+  return res.status(200).json(results, null, 2);
 }
