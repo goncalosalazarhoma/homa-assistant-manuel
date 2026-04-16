@@ -94,22 +94,24 @@
     '  box-sizing: border-box !important; margin: 0 !important; padding: 0 !important;',
     '  font-family: Arial, Helvetica, sans-serif !important; line-height: normal !important;',
     '}',
+    /* Restore padding for message bubble text */
+    '.manuel-b { padding: 10px 14px !important; }',
 
     /* Bubble */
     '#manuel-bubble {',
-    '  position: fixed !important; bottom: 24px !important; right: 24px !important; z-index: 2147483647 !important;',
-    '  width: 64px !important; height: 64px !important; border-radius: 50% !important;',
-    '  background: transparent !important; border: none !important; cursor: pointer !important;',
-    '  box-shadow: 0 4px 20px rgba(88,61,62,0.35) !important;',
+    '  position: fixed !important; bottom: 20px !important; right: 20px !important; z-index: 2147483647 !important;',
+    '  width: 76px !important; height: 76px !important; border-radius: 50% !important;',
+    '  background: #DAAA00 !important; border: 3px solid #DAAA00 !important; cursor: pointer !important;',
+    '  box-shadow: 0 4px 24px rgba(88,61,62,0.4) !important;',
     '  display: flex !important; align-items: center !important; justify-content: center !important;',
-    '  transition: transform 0.2s, box-shadow 0.2s !important; overflow: hidden !important; padding: 0 !important;',
+    '  transition: transform 0.2s, box-shadow 0.2s !important; overflow: visible !important; padding: 0 !important;',
     '}',
     '#manuel-bubble:hover { transform: scale(1.08) !important; box-shadow: 0 6px 28px rgba(88,61,62,0.45) !important; }',
-    '#manuel-bubble img { width: 64px !important; height: 64px !important; object-fit: cover !important; border-radius: 50% !important; display: block !important; }',
+    '#manuel-bubble img { width: 70px !important; height: 70px !important; object-fit: cover !important; border-radius: 50% !important; display: block !important; border: 3px solid #DAAA00 !important; box-shadow: 0 0 0 3px #583D3E !important; }',
 
     /* Badge tooltip */
     '#manuel-badge {',
-    '  position: fixed !important; bottom: 100px !important; right: 24px !important; z-index: 2147483646 !important;',
+    '  position: fixed !important; bottom: 108px !important; right: 20px !important; z-index: 2147483646 !important;',
     '  background: #583D3E !important; color: #FAEEC9 !important; font-size: 12px !important; font-weight: 600 !important;',
     '  padding: 7px 14px !important; border-radius: 20px !important;',
     '  box-shadow: 0 2px 12px rgba(88,61,62,0.25) !important;',
@@ -123,7 +125,7 @@
 
     /* Panel */
     '#manuel-panel {',
-    '  position: fixed !important; bottom: 100px !important; right: 24px !important; z-index: 2147483645 !important;',
+    '  position: fixed !important; bottom: 108px !important; right: 20px !important; z-index: 2147483645 !important;',
     '  width: 360px !important; max-width: calc(100vw - 32px) !important;',
     '  height: 540px !important; max-height: calc(100vh - 120px) !important;',
     '  background: #FFFFFF !important; border-radius: 20px !important;',
@@ -445,8 +447,9 @@
     var prodsHtml = '';
     if (products && products.length) {
       var cards = products.map(function(p) {
-        var imgHtml = p.image
-          ? '<img class="manuel-pi" src="' + p.image + '" alt="' + (p.name||'') + '" loading="lazy" crossorigin="anonymous" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" /><div class="manuel-pip" style="display:none">' + I.prod + '</div>'
+        var proxiedSrc = p.image ? (BASE_URL + '/api/imgproxy?url=' + encodeURIComponent(p.image)) : null;
+        var imgHtml = proxiedSrc
+          ? '<img class="manuel-pi" src="' + proxiedSrc + '" alt="' + (p.name||'produto').replace(/"/g, '') + '" loading="lazy" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" /><div class="manuel-pip" style="display:none">' + I.prod + '</div>'
           : '<div class="manuel-pip">' + I.prod + '</div>';
         return '<a href="' + p.url + '" target="_blank" rel="noopener" class="manuel-pc">' +
           imgHtml +
