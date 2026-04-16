@@ -1,67 +1,52 @@
-// api/debug.js — Diagnóstico: feed + teste de acesso a imagens
+// api/imgproxy.js — Proxy de imagens SFCC homa.pt para o widget
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const FEED_URL = process.env.FEED_URL || 'https://homastore.online/homa/feedhoma.xml';
-  const results = {};
+  const { url } = req.query;
+  if (!url) return res.status(400).send('Missing url');
 
-  // 1. Test image access from Vercel server
-  const testImgUrl = 'https://homastore.online/images/products/000031_conjunto_de_2_travessas_quadradas_borcam_em_vidro_homa_1.jpg';
+  let parsed;
+  try { parsed = new URL(decodeURIComponent(url)); }
+  catch { return res.status(400).send('Invalid url'); }
+
+  if (parsed.protocol !== 'https:') return res.status(403).send('HTTPS only');
+
+  // Only allow homa.pt SFCC CDN
+  const allowed = ['www.homa.pt', 'homa.pt', 'www.homa.es', 'homa.es'];
+  if (!allowed.includes(parsed.hostname)) {
+    return res.status(403).send('Domain not allowed: ' + parsed.hostname);
+  }
+
   try {
-    const imgRes = await fetch(testImgUrl, {
+    const upstream = await fetch(parsed.toString(), {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'image/*,*/*',
+        'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        'Accept-Language': 'pt-PT,pt;q=0.9',
         'Referer': 'https://www.homa.pt/',
         'sec-fetch-dest': 'image',
         'sec-fetch-mode': 'no-cors',
-        'sec-fetch-site': 'same-site',
+        'sec-fetch-site': 'same-origin',
       },
-      signal: AbortSignal.timeout(8000)
+      signal: AbortSignal.timeout(10000)
     });
-    results.image_test = {
-      url: testImgUrl,
-      status: imgRes.status,
-      ok: imgRes.ok,
-      content_type: imgRes.headers.get('content-type'),
-      content_length: imgRes.headers.get('content-length'),
-    };
+
+    if (!upstream.ok) {
+      console.error(`imgproxy: ${upstream.status} for ${parsed.toString()}`);
+      return res.status(upstream.status).send(`Upstream ${upstream.status}`);
+    }
+
+    const ct = upstream.headers.get('content-type') || 'image/jpeg';
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    return res.status(200).send(buffer);
+
   } catch (err) {
-    results.image_test = { error: err.message, url: testImgUrl };
+    console.error('imgproxy error:', err.message);
+    return res.status(502).send('Proxy failed');
   }
-
-  // 2. Parse a few products from feed
-  try {
-    const feedRes = await fetch(FEED_URL, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HomaBot/1.0)' },
-      signal: AbortSignal.timeout(20000)
-    });
-    const xml = await feedRes.text();
-    const totalItems = (xml.match(/<item>/gi) || []).length;
-    const firstItem = xml.split(/<item>/i)[1] || '';
-    const getField = (tag, text) => {
-      const m = text.match(new RegExp(`<g:${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/g:${tag}>`, 'i'));
-      return m ? m[1].trim() : null;
-    };
-    results.feed = {
-      status: feedRes.status,
-      total_items: totalItems,
-      first_product_image: getField('image_link', firstItem),
-      first_product_title: firstItem.match(/<title>([^<]+)/)?.[1],
-    };
-  } catch (err) {
-    results.feed = { error: err.message };
-  }
-
-  // 3. Proxy test — simulate what imgproxy does
-  if (results.image_test?.ok) {
-    results.proxy_verdict = 'IMAGE ACCESS OK — proxy will work';
-  } else {
-    results.proxy_verdict = `IMAGE BLOCKED (${results.image_test?.status || results.image_test?.error}) — need alternative image source`;
-    // Suggest: use homa.pt SFCC CDN instead
-    results.suggested_fix = 'Extract product ID from feed and build homa.pt CDN URL instead of homastore.online';
-  }
-
-  return res.status(200).json(results);
 }
