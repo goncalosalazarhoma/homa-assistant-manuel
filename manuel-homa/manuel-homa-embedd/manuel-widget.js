@@ -449,9 +449,9 @@
       var cards = products.map(function(p) {
         // Route images through Vercel proxy to bypass hotlink protection on homastore.online
         var imgSrc = p.image ? (BASE_URL + '/api/imgproxy?url=' + encodeURIComponent(p.image)) : null;
+        // img only — no sibling placeholder div. On error, swap img for placeholder via manuelImgErr
         var imgHtml = imgSrc
-          ? '<img class="manuel-pi" src="' + imgSrc + '" alt="' + (p.name||'produto').replace(/"/g,'') + '" loading="lazy" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" />'
-          + '<div class="manuel-pip" style="display:none">' + I.prod + '</div>'
+          ? '<img class="manuel-pi" src="' + imgSrc + '" alt="produto" loading="lazy" onerror="manuelImgErr(this)" />'
           : '<div class="manuel-pip">' + I.prod + '</div>';
         return '<a href="' + p.url + '" target="_blank" rel="noopener" class="manuel-pc">' +
           imgHtml +
@@ -623,6 +623,14 @@
     ta.style.height = 'auto';
     ta.style.height = Math.min(ta.scrollHeight, 76) + 'px';
   }
+
+  // ── Image error handler (global, called from onerror) ───────────────────────
+  window.manuelImgErr = function(img) {
+    var pip = document.createElement('div');
+    pip.className = 'manuel-pip';
+    pip.innerHTML = I.prod;
+    if (img.parentNode) img.parentNode.replaceChild(pip, img);
+  };
 
   // ── Boot ──────────────────────────────────────────────────────────────────────
   function safeInit() {
