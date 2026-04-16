@@ -26,6 +26,11 @@ export default async function handler(req, res) {
 const FEED_URL = process.env.FEED_URL || 'https://homastore.online/homa/feedhoma.xml';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+// SFCC image base — extract from a real PDP image URL
+// Pattern: /dw/image/v2/{INSTANCE}/on/demandware.static/-/Sites-homa-catalog/default/{HASH}/images/large/{filename}
+const SFCC_IMG_BASE = process.env.SFCC_IMG_BASE
+  || 'https://www.homa.pt/dw/image/v2/BFDH_PRD/on/demandware.static/-/Sites-homa-catalog/default/dw6dfe17e3/images/large';
+
 let productCache = {
   products: [],   // [{id, name, url, image, price, description, category, keywords}]
   loadedAt: 0
@@ -77,7 +82,10 @@ function parseFeed(xml) {
 
     const name = get('title') || get('name');
     const url = get('link');
-    const image = get('image_link') || get('image');
+    // Reconstruct image URL using homa.pt SFCC CDN (homastore.online blocks external requests)
+    const feedImageUrl = get('image_link') || get('image');
+    const imageFilename = feedImageUrl ? feedImageUrl.split('/').pop() : null;
+    const image = imageFilename ? (SFCC_IMG_BASE + '/' + imageFilename) : null;
     const priceRaw = get('price') || get('sale_price');
     const description = get('description').slice(0, 300);
     const category = get('product_type') || get('google_product_category') || '';
