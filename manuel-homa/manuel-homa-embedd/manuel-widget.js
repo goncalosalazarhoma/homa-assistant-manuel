@@ -9,10 +9,14 @@
   'use strict';
 
   // ── Config ──────────────────────────────────────────────────────────────────
-  const API_URL = (window.ManuelConfig && window.ManuelConfig.apiUrl)
-    || (document.currentScript && document.currentScript.src.replace('/manuel-widget.js', '/api/chat'))
-    || '/api/chat';
-
+  // document.currentScript is null when injected dynamically — find script by src
+  function detectApiUrl() {
+    if (window.ManuelConfig && window.ManuelConfig.apiUrl) return window.ManuelConfig.apiUrl;
+    var tags = document.querySelectorAll('script[src*="manuel-widget"]');
+    if (tags.length) return tags[tags.length - 1].src.replace('/manuel-widget.js', '/api/chat');
+    return 'https://homa-assistant-manuel-jg8m.vercel.app/api/chat';
+  }
+  const API_URL = detectApiUrl();
   const AVATAR_URL = (window.ManuelConfig && window.ManuelConfig.avatarUrl) || null;
 
   // ── Styles ──────────────────────────────────────────────────────────────────
@@ -489,10 +493,17 @@
   }
 
   // ── Boot ─────────────────────────────────────────────────────────────────────
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
+  // Robust init: works when injected async, deferred, or via tag managers
+  function safeInit() {
+    if (document.getElementById('manuel-bubble')) return; // already mounted
+    if (!document.body) { setTimeout(safeInit, 50); return; } // body not ready yet
     init();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', safeInit);
+  } else {
+    safeInit();
   }
 
 })();
