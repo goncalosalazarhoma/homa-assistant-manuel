@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Manuel Widget — hôma</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #F5F0E8; color: #181818; display: flex; align-items: center; justify-content: center; min-height: 100vh; flex-direction: column; gap: 16px; text-align: center; padding: 24px; }
+    h1 { font-size: 2rem; color: #583D3E; }
+    code { background: #fff; border: 1px solid #E5E5E5; padding: 12px 20px; border-radius: 8px; font-size: 0.9rem; display: block; max-width: 600px; text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>Manuel — Assistente hôma</h1>
+  <p>Para embebed o widget no teu site, adiciona esta linha antes de <code>&lt;/body&gt;</code>:</p>
+  <code id="snippet">&lt;script src="https://SEU-DOMINIO.vercel.app/manuel-widget.js"&gt;&lt;/script&gt;</code>
+  <p style="font-size:0.85rem;color:#796465;">Substitui SEU-DOMINIO pelo URL do teu deploy Vercel.</p>
+  <script>
+    const host = window.location.origin;
+    document.getElementById('snippet').textContent = `<script src="${host}/manuel-widget.js"><\/script>`;
+  </script>
+  <!-- Widget a funcionar nesta página de demo -->
+  <script src="/manuel-widget.js"></script>
+</body>
+</html>
