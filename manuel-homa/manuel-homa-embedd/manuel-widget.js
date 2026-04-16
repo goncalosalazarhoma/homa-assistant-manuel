@@ -447,9 +447,11 @@
     var prodsHtml = '';
     if (products && products.length) {
       var cards = products.map(function(p) {
-        var proxiedSrc = p.image ? (BASE_URL + '/api/imgproxy?url=' + encodeURIComponent(p.image)) : null;
-        var imgHtml = proxiedSrc
-          ? '<img class="manuel-pi" src="' + proxiedSrc + '" alt="' + (p.name||'produto').replace(/"/g, '') + '" loading="lazy" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" /><div class="manuel-pip" style="display:none">' + I.prod + '</div>'
+        // Route images through Vercel proxy to bypass hotlink protection on homastore.online
+        var imgSrc = p.image ? (BASE_URL + '/api/imgproxy?url=' + encodeURIComponent(p.image)) : null;
+        var imgHtml = imgSrc
+          ? '<img class="manuel-pi" src="' + imgSrc + '" alt="' + (p.name||'produto').replace(/"/g,'') + '" loading="lazy" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" />'
+          + '<div class="manuel-pip" style="display:none">' + I.prod + '</div>'
           : '<div class="manuel-pip">' + I.prod + '</div>';
         return '<a href="' + p.url + '" target="_blank" rel="noopener" class="manuel-pc">' +
           imgHtml +
