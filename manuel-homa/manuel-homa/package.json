@@ -1,0 +1,16 @@
+{
+  "name": "manuel-homa-assistant",
+  "version": "1.0.0",
+  "description": "Manuel — Assistente de Decoração hôma",
+  "main": "api/chat.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
