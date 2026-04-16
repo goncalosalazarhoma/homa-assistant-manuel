@@ -1,60 +1,53 @@
-// api/imgproxy.js — Proxy de imagens para evitar CORS no widget
-// Serve imagens do feed XML sem restrições de origem
-
+// api/imgproxy.js — Proxy de imagens de produto (server-side, sem CORS)
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const { url } = req.query;
-  if (!url) return res.status(400).send('Missing url param');
+  if (!url) return res.status(400).send('Missing url');
 
   let parsed;
-  try {
-    parsed = new URL(decodeURIComponent(url));
-  } catch {
-    return res.status(400).send('Invalid url');
-  }
+  try { parsed = new URL(decodeURIComponent(url)); }
+  catch { return res.status(400).send('Invalid url'); }
 
-  // Must be https and an image path
   if (parsed.protocol !== 'https:') return res.status(403).send('HTTPS only');
 
-  // Block obviously non-image extensions (allow blank extension — CDN URLs often have none)
+  // Block non-image extensions
   const ext = parsed.pathname.split('.').pop().toLowerCase();
-  const blocked = ['html', 'php', 'js', 'css', 'xml'];
-  if (blocked.includes(ext)) return res.status(403).send('Not an image');
+  if (['html','php','js','css','xml','json'].includes(ext)) return res.status(403).send('Not an image');
 
   try {
     const upstream = await fetch(parsed.toString(), {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; HomaBot/1.0)',
+        // Full browser-like headers to bypass hotlink protection
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'Accept-Language': 'pt-PT,pt;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
         'Referer': 'https://www.homa.pt/',
-        'Accept': 'image/*,*/*'
+        'sec-fetch-dest': 'image',
+        'sec-fetch-mode': 'no-cors',
+        'sec-fetch-site': 'same-site',
       },
       signal: AbortSignal.timeout(10000)
     });
 
     if (!upstream.ok) {
-      console.error('imgproxy upstream error:', upstream.status, parsed.toString());
-      return res.status(upstream.status).send('Upstream ' + upstream.status);
+      console.error(`imgproxy: ${upstream.status} for ${parsed.hostname}${parsed.pathname}`);
+      return res.status(upstream.status).send(`Upstream ${upstream.status}`);
     }
 
-    const contentType = upstream.headers.get('content-type') || 'image/jpeg';
-    
-    // Reject if upstream returned non-image content
-    if (!contentType.startsWith('image/') && !contentType.includes('octet-stream')) {
-      return res.status(415).send('Not an image content-type: ' + contentType);
-    }
-
+    const ct = upstream.headers.get('content-type') || 'image/jpeg';
     const buffer = Buffer.from(await upstream.arrayBuffer());
 
-    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Type', ct);
     res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-    res.setHeader('X-Proxied-From', parsed.hostname);
+    res.setHeader('Access-Control-Allow-Origin', '*');
     return res.status(200).send(buffer);
 
   } catch (err) {
-    console.error('imgproxy error:', err.message, parsed.toString());
+    console.error('imgproxy fetch error:', err.message);
     return res.status(502).send('Proxy fetch failed');
   }
 }
